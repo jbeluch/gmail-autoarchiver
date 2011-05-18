@@ -2,13 +2,26 @@
 '''
 GMail AutoArchiver
 
-This script will archive emails in your inbox over a certain age.
+This script will archive emails in your inbox that are older than a
+specified number of days.
 
 Usage:
     1. Set up filters in gmail matching the pattern 'aa:\d+' where the
-    '\d+' is the age limit in days, e.g. 'aa:3'.
-    2. Run this script. If an email is in your inbox and is older than
-    it's specified age limit, it gets archived.
+       '\d+' is the age limit in days, e.g. 'aa:3'.
+    2. [Optional] Enter you email address below for the variable
+       EMAIL_ADDRESS. If you skip this step, you will be prompted to
+       enter your email address interactively when the script runs.
+    3. Execute the script. If you are running it for the first time,
+       you will be required to authorize the script's oauth access in
+       a web browser.
+
+    The script will print the subject line for any emails that are
+    auto-archived.
+
+    Note: Once you authorize the oauth token/secret, they are saved to
+    disk at OAUTH_PATH. If the token/secret no longer work, simply
+    remove the file at OAUTH_PATH. The next time the script is run it
+    will set up a new token/secret.
 
 Further Reading:
     GMail IMAP: http://code.google.com/apis/gmail/imap/
@@ -23,8 +36,9 @@ Hints about GMail:
 '''
 
 '''next features
-- oauth instead of pw in file
+- oauth instead of pw in file *completed*
 - download all labels and use regex to match instead of autoarchive:*
+- fetch all messages at once instead of using a separate request for each.
 '''
 
 from datetime import datetime, tzinfo, timedelta
@@ -39,6 +53,8 @@ import xoauth
 # upon script execution.
 EMAIL_ADDRESS = '' # yourname@gmail.com
 
+# Where the oauth token/secret are stored.
+# Remove this file and run script to generate a new token/secret.
 OAUTH_PATH = '.oauth_identity'
 
 # Gmail label pattern, * is a wildcard
@@ -75,7 +91,6 @@ utc = FixedOffset(0, 'UTC')
 
 def connect(oauth_entity, email):
     consumer = xoauth.OAuthEntity('anonymous', 'anonymous')
-    #access_token = OAuthEntity(options.oauth_token, options.oauth_token_secret)
     xoauth_string = xoauth.GenerateXOauthString(
         consumer, oauth_entity, email, 'imap',
         None, None, None)
@@ -86,11 +101,6 @@ def connect(oauth_entity, email):
     
     print 'Connected to mailbox successfully.'
     return imap_conn
-
-def connect2(username, password):
-    s = imaplib.IMAP4_SSL('imap.gmail.com', 993)
-    s.login(username, password)
-    return s
 
 def get_autoarchive_labels(s, label_pattern):
     '''Returns a list of tuples (str labelname, int age_in_days)'''
@@ -183,14 +193,6 @@ def archive_old_messages(s, msg_ids, age):
             print 'Archiving message %s. Subject: %s' % (msg_id, subject)
             archive_message(s, msg_id)
 
-def get_credentials():
-    email = EMAIL_ADDRESS
-    pw = PASSWORD
-    if len(email) == 0:
-        email = raw_input('Email address (name@gmail.com): ')
-    if len(pw) == 0:
-        pw = getpass.getpass()
-    return email, pw
 def ask_for_email():
     email = raw_input('Email address (name@gmail.com): ')
     return email.strip()
@@ -200,17 +202,19 @@ def write_oauth_identity(fn, oauth_entity):
         f.write('%s\n%s' % (oauth_entity.key, oauth_entity.secret))
 
 def read_oauth_identity(fn):
-    '''Returns a tuple, (token, secret) from a given fn.'''
+    '''Returns an xoauth.OAuthEntity from a given fn.
+    Expects the token on line 1 and the secret on line 2.'''
     try:
         with open(fn) as f:
             lines = f.readlines()
     except IOError:
         print 'Error reading from %s. Check that it exists.' % fn
         return None
-    #return lines[0].strip(), lines[1].strip()
     return xoauth.OAuthEntity(lines[0].strip(), lines[1].strip())
 
 def generate_new_oauth_entity(user, fn):
+    '''Generates a new oauth token/secret for a given user. The new
+    pair is written to the given fn. '''
     scope = 'https://mail.google.com/'
     consumer = xoauth.OAuthEntity('anonymous', 'anonymous')
     google_accounts_url_generator = xoauth.GoogleAccountsUrlGenerator(user)
