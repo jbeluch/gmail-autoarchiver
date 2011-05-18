@@ -5,8 +5,8 @@ GMail AutoArchiver
 This script will archive emails in your inbox over a certain age.
 
 Usage:
-    1. Set up filters in gmail matching the pattern 'autoarchive:\d+'
-    where the \d+ is the age limit in days, e.g. 'autoarchive:3'.
+    1. Set up filters in gmail matching the pattern 'aa:\d+' where the
+    '\d+' is the age limit in days, e.g. 'aa:3'.
     2. Run this script. If an email is in your inbox and is older than
     it's specified age limit, it gets archived.
 
@@ -17,7 +17,9 @@ Further Reading:
 
 Hints about GMail:
     - GMail labels are = to IMAP folders.
-    - To archive an email in gmail, you set the IMAP +FLAG \Deleted
+    - To archive an email in gmail when you have seleted INBOX, you
+      simply set the IMAP +FLAG \Deleted. This will remove it from the 
+      INBOX folder but the ALL MAIL folder will still contain a copy.
 '''
 
 '''next features
@@ -30,10 +32,23 @@ import imaplib
 import email
 import getpass
 
+## Config -------------------------------------------------------------
+
 # Either hard code values here, or leave blank and you will be prompted
 # upon script execution.
-EMAIL_ADDRESS = ''
+EMAIL_ADDRESS = '' # yourname@gmail.com
 PASSWORD = ''
+
+# Gmail label pattern, * is a wildcard
+# This pattern must conform to the IMAP spec listed here:
+#   http://tools.ietf.org/search/rfc3501#section-6.3.8
+# Typically it will be something like 'autoarchive:*'
+# Note that later in the script the labels are expected to contain
+# a color and then an integer reprsenting the number of days after the
+# colon.
+LABEL_PATTERN = 'aa:*'
+
+## End Config ---------------------------------------------------------
 
 ## First some helpful timezone stuff
 # From http://docs.python.org/library/datetime.html
@@ -61,19 +76,19 @@ def connect(username, password):
     s.login(username, password)
     return s
 
-def get_autoarchive_labels(s):
+def get_autoarchive_labels(s, label_pattern):
     '''Returns a list of tuples (str labelname, int age_in_days)'''
-    _, list_of_labels = s.list(pattern='autoarchive:*')
+    _, list_of_labels = s.list(pattern=label_pattern)
     # Annoyingly if has no matches it returns a list with one element, None
     if list_of_labels[0] == None:
         return []
 
-    # labels looks like: '(\\HasNoChildren) "/" "autoarchive:1"'
-    # we want to extract the 'autoarchive:1' part
+    # labels looks like: '(\\HasNoChildren) "/" "aa:1"'
+    # we want to extract the 'aa:1' part
     ret = []
     #print list_of_labels
     for item in list_of_labels:
-        label = item.split('"')[-2] # label = 'autoarchive:3'
+        label = item.split('"')[-2] # label = 'aa:3'
         age = int(label.split(':', 1)[-1]) # age = 3
         ret.append((label, age))
 
@@ -168,8 +183,8 @@ def main():
     # Select inbox
     s.select('INBOX')
 
-    # Get autoarchive:\d+ labels
-    label_ages = get_autoarchive_labels(s)
+    # Get aa:\d+ labels
+    label_ages = get_autoarchive_labels(s, LABEL_PATTERN)
 
     for label, age in label_ages:
         msg_ids = get_message_ids(s, label)
