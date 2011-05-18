@@ -14,6 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Modified 5/18/2011 by Jonathan Beluch
+#
+# * Replaced used of the sha module with the hashlib module
+# * Commented out some of the print statements
+
 
 """Utilities for XOAUTH authentication.
 
@@ -276,8 +281,8 @@ def GenerateRequestToken(consumer, scope, nonce, timestamp,
   url = '%s?%s' % (request_url, FormatUrlParams(params))
   response = urllib.urlopen(url).read()
   response_params = ParseUrlParamString(response)
-  for param in response_params.items():
-    print '%s: %s' % param
+  #for param in response_params.items():
+    #print '%s: %s' % param
   token = OAuthEntity(response_params['oauth_token'],
                       response_params['oauth_token_secret'])
   print ('To authorize token, visit this url and follow the directions '
@@ -315,10 +320,14 @@ def GetAccessToken(consumer, request_token, oauth_verifier,
   params['oauth_signature'] = signature
 
   url = '%s?%s' % (request_url, FormatUrlParams(params))
-  response = urllib.urlopen(url).read()
-  response_params = ParseUrlParamString(response)
-  for param in ('oauth_token', 'oauth_token_secret'):
-    print '%s: %s' % (param, response_params[param])
+  u = urllib.urlopen(url)
+  if u.getcode() != 200:
+    print 'Invalid token.'
+    return None
+
+  response_params = ParseUrlParamString(u.read())
+  #for param in ('oauth_token', 'oauth_token_secret'):
+    #print '%s: %s' % (param, response_params[param])
   return OAuthEntity(response_params['oauth_token'],
                      response_params['oauth_token_secret'])
 
@@ -356,7 +365,7 @@ def GenerateXOauthString(consumer, access_token, user, proto,
       method,
       request_url_base,
       signed_params)
-  print 'signature base string:\n' + base_string + '\n'
+  #print 'signature base string:\n' + base_string + '\n'
   signature = GenerateOauthSignature(base_string, consumer.secret,
                                      access_token.secret)
   oauth_params['oauth_signature'] = signature
@@ -371,7 +380,7 @@ def GenerateXOauthString(consumer, access_token, user, proto,
   else:
     request_url = request_url_base
   preencoded = '%s %s %s' % (method, request_url, param_list)
-  print 'xoauth string (before base64-encoding):\n' + preencoded + '\n'
+  #print 'xoauth string (before base64-encoding):\n' + preencoded + '\n'
   return preencoded
 
 
