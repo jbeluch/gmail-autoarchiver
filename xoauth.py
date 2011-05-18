@@ -1,4 +1,4 @@
-#!/usr/bin/python2.4
+#!/usr/bin/env python
 #
 # Copyright 2010 Google Inc.
 #
@@ -71,11 +71,11 @@ import hmac
 import imaplib
 from optparse import OptionParser
 import random
-import sha
 import smtplib
 import sys
 import time
 import urllib
+import hashlib
 
 
 def SetupOptionParser():
@@ -189,7 +189,7 @@ def GenerateSignatureBaseString(method, request_url_base, params):
 
 
 def GenerateHmacSha1Signature(text, key):
-  digest = hmac.new(key, text, sha)
+  digest = hmac.new(key, text, hashlib.sha1)
   return base64.b64encode(digest.digest())
 
 
