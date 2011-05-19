@@ -226,7 +226,7 @@ def archive_messages(s, msg_ids):
     ''' Simply set the deleted flag and msg will be archived in 
     gmail. '''
     print 'Archiving messages.'
-    msg_str = ','.join(msg_idss)
+    msg_str = ','.join(msg_ids)
     s.store(msg_str, '+FLAGS', '"\\\\Deleted"')
 
 
