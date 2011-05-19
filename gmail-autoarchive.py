@@ -64,7 +64,7 @@ from datetime import datetime, tzinfo, timedelta
 import imaplib
 import email
 import getpass
-import xoauth
+from lib import xoauth
 
 ## Config -------------------------------------------------------------
 
