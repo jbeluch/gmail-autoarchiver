@@ -63,8 +63,8 @@ Hints about GMail:
 from datetime import datetime, tzinfo, timedelta
 import imaplib
 import email
-import getpass
 from lib import xoauth
+from itertools import chain
 
 ## Config -------------------------------------------------------------
 
@@ -171,32 +171,37 @@ def build_tz(tzstring):
     tz = FixedOffset(offset_minutes, name)
     return tz
 
-def archive_message(s, msg_id):
-    ''' Simply set the deleted flag and msg will be archived in 
-    gmail. '''
-    s.store(msg_id, '+FLAGS', '"\\\\Deleted"')
+def fetch_emails(s, msg_ids):
+    '''Returns a dict, keys are msg_ids, values are email objects.
+    Currently hardcoded to only fetch the date and subject headers.'''
+    msg_id_str = ','.join(msg_ids)
+    _, messages = s.fetch(msg_id_str, '(body[header.fields (date subject)])')
 
-def archive_old_messages(s, msg_ids, age):
-    '''Takes a list of msg_ids and an age in days, and will archive
-    any messages older than the age limit.'''
+    # Every 2nd item is a closing ')' so we skip by 2
+    emails = {}
+    for msg in messages[::2]:
+        names, values = msg
+        msg_id, _ = names.split(' ', 1)
+        emails[msg_id] = email.message_from_string(values)
+    return emails
+
+def get_messages_to_archive(ages, emails):
+    '''Returns a list of msg ids to be archived.'''
+    # ages = {msg_id: age, ... }
+    # emails = {msg_id: email, ... }
     now = datetime.utcnow().replace(tzinfo=utc)
-    age_limit = timedelta(days=age)
 
-    for msg_id in msg_ids:
-        # Just get the date and subject message header, no need for entire msg
-        _, headers = s.fetch(msg_id, '(body[header.fields (date subject)])')
-        # Use email module, makes parsing headers easy :)
-        e = email.message_from_string(headers[0][1])
-        
-        datestr = e.get('Date').strip()
+    old_msgs = []
+    for msg_id, mail in emails.items():
+        datestr = mail.get('Date').strip()
         # e.g. datestr = 'Thu, 7 Apr 2011 08:34:04 -0400 (EDT)'
-        subject = e.get('Subject').replace('\r\n', ' ')
+        subject = mail.get('Subject').replace('\r\n', ' ')
 
         # %z doesn't work , must manually build timezone.
         # We want to remove the offset and sometimes present tzname from 
         # datestr so we can use strptime() 
         
-        # someitmes datestr has '(tzname)' at the end and sometimes not, so we
+        # sometimes datestr has '(tzname)' at the end and sometimes not, so we
         # split from left a set amount, guess i could use re
         parts = datestr.split(' ', 5)
         datetimestr = ' '.join(parts[:5])
@@ -207,10 +212,23 @@ def archive_old_messages(s, msg_ids, age):
         tz = build_tz(tzstring)
         dt = dt_naive.replace(tzinfo=tz)
         
+        assert msg_id in ages.keys(), 'No age limit for message %s' % msg_id
+        age_limit = timedelta(days=ages[msg_id])
+
         # The magical if statement, you knew it was somewhere :)
         if (now - dt) > age_limit:
-            print 'Archiving message %s. Subject: %s' % (msg_id, subject)
-            archive_message(s, msg_id)
+            print 'Preparing message %s to be archived. Subject: %s' % (msg_id, subject)
+            old_msgs.append(msg_id)
+
+    return old_msgs
+
+def archive_messages(s, msg_ids):
+    ''' Simply set the deleted flag and msg will be archived in 
+    gmail. '''
+    print 'Archiving messages.'
+    msg_str = ','.join(msg_idss)
+    s.store(msg_str, '+FLAGS', '"\\\\Deleted"')
+
 
 def ask_for_email():
     email = raw_input('Email address (name@gmail.com): ')
@@ -285,9 +303,25 @@ def main():
     # Get aa:\d+ labels
     label_ages = get_autoarchive_labels(s, LABEL_PATTERN)
 
+    # Create a dict, keys are msg_ids, values are the age_limit parsed from the
+    # gmail label
+    ages = {}
     for label, age in label_ages:
         msg_ids = get_message_ids(s, label)
-        archive_old_messages(s, msg_ids, age)
+        ages.update([(msg_id, age) for msg_id in msg_ids])
+
+
+    # Get the message headers for all messages in question with a single FETCH
+    all_msg_ids = ages.keys()
+    emails = fetch_emails(s, all_msg_ids)
+
+    # Get a message ids for emails to be archived based on email date
+    old_msgs = get_messages_to_archive(ages, emails)
+
+    if len(old_msgs) > 0:
+        archive_messages(s, old_msgs)
+    else:
+        print 'No messages to be archived.'
 
     # bye
     s.close()
