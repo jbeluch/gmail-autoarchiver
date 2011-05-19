@@ -277,7 +277,8 @@ def generate_new_oauth_entity(user, fn):
 
 def main():
     # Check if email is stored otherwise we have to ask for it
-    if len(EMAIL_ADDRESS) == 0:
+    email = EMAIL_ADDRESS
+    if len(email) == 0:
         email = ask_for_email()
 
     # First check for oauth credentials
