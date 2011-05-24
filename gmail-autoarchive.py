@@ -65,6 +65,7 @@ import imaplib
 import email
 from lib import xoauth
 from itertools import chain
+import os.path
 
 ## Config -------------------------------------------------------------
 
@@ -74,7 +75,7 @@ EMAIL_ADDRESS = '' # yourname@gmail.com
 
 # Where the oauth token/secret are stored.
 # Remove this file and run script to generate a new token/secret.
-OAUTH_PATH = '.oauth_identity'
+OAUTH_PATH = os.path.join(os.path.dirname(__file__), '.oauth_identity')
 
 # Gmail label pattern, * is a wildcard
 # This pattern must conform to the IMAP spec listed here:
